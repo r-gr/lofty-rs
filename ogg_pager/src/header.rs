@@ -64,6 +64,8 @@ impl PageHeader {
 			return Err(PageError::MissingMagic);
 		}
 
+		log::debug!("Verified OggS sig");
+
 		// Version, always 0
 		let version = data.read_u8()?;
 
@@ -96,6 +98,8 @@ impl PageHeader {
 			segments: segment_table,
 			checksum,
 		};
+
+		log::debug!("Read header");
 
 		Ok(header)
 	}

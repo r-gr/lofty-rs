@@ -29,12 +29,14 @@ where
 	let parse_mode = parse_options.parsing_mode;
 
 	let vendor_len = data.read_u32::<LittleEndian>()?;
+	len -= 4; // removed a u32
 	if u64::from(vendor_len) > len {
 		err!(SizeMismatch);
 	}
 
 	let mut vendor_bytes = try_vec![0; vendor_len as usize];
 	data.read_exact(&mut vendor_bytes)?;
+	log::debug!("checkpoint");
 
 	len -= u64::from(vendor_len);
 
@@ -76,6 +78,7 @@ where
 	}
 
 	let number_of_items = data.read_u32::<LittleEndian>()?;
+	len -= 4; // removed a u32
 	if number_of_items > (len >> 2) as u32 {
 		err!(SizeMismatch);
 	}
@@ -87,9 +90,16 @@ where
 	};
 
 	for _ in 0..number_of_items {
-		let comment_len = data.read_u32::<LittleEndian>()?;
+		let mut comment_len = data.read_u32::<LittleEndian>()?;
+		len -= 4; // removed a u32
 		if u64::from(comment_len) > len {
-			err!(SizeMismatch);
+			log::warn!(
+				"Missing data: expected {} bytes but have {}",
+				comment_len,
+				len
+			);
+			comment_len = len as u32;
+			// err!(SizeMismatch);
 		}
 
 		let mut comment_bytes = try_vec![0; comment_len as usize];
@@ -246,31 +256,46 @@ where
 	// TODO: Would be nice if we didn't have to read just to seek and reread immediately
 	let start = data.stream_position()?;
 	let first_page_header = PageHeader::read(data)?;
+	log::debug!("Read first_page_header");
 
 	data.seek(SeekFrom::Start(start))?;
 
-	// Read the header packets
-	let packets = Packets::read_count(data, packets_to_read)?;
-
+	// Read and verify the identification packet
+	let packets = Packets::read_count(data, 1)?;
 	let identification_packet = packets
 		.get(0)
 		.ok_or_else(|| decode_err!("OGG: Expected identification packet"))?;
 	verify_signature(identification_packet, header_sig)?;
+	log::debug!("Verified identification packet signature");
+
+	// Read the remaining header packets
+	log::debug!("Reading {} packets...", packets_to_read - 1);
+	let packets = Packets::read_count(data, packets_to_read - 1)?;
+	log::debug!("Read {} packets", packets_to_read - 1);
 
 	if !parse_options.read_tags {
 		return Ok((None, first_page_header, packets));
 	}
 
 	let mut metadata_packet = packets
-		.get(1)
+		.get(0)
 		.ok_or_else(|| decode_err!("OGG: Expected comment packet"))?;
 	verify_signature(metadata_packet, comment_sig)?;
+	log::debug!("Verified comments signature");
+
+	log::debug!(
+		"Extracted metadata packet of length {}",
+		metadata_packet.len()
+	);
 
 	// Remove the signature from the packet
 	metadata_packet = &metadata_packet[comment_sig.len()..];
 
+	log::debug!("Reading comments...");
 	let reader = &mut metadata_packet;
+	log::debug!("metadata_packet size = {}", reader.len());
 	let tag = read_comments(reader, reader.len() as u64, parse_options)?;
+	log::debug!("Read comments");
 
 	Ok((Some(tag), first_page_header, packets))
 }
