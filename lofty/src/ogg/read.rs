@@ -36,7 +36,7 @@ where
 
 	let mut vendor_bytes = try_vec![0; vendor_len as usize];
 	data.read_exact(&mut vendor_bytes)?;
-	log::debug!("checkpoint");
+	log::trace!("ogg read_comments checkpoint");
 
 	len -= u64::from(vendor_len);
 
@@ -256,7 +256,7 @@ where
 	// TODO: Would be nice if we didn't have to read just to seek and reread immediately
 	let start = data.stream_position()?;
 	let first_page_header = PageHeader::read(data)?;
-	log::debug!("Read first_page_header");
+	log::trace!("Read first_page_header");
 
 	data.seek(SeekFrom::Start(start))?;
 
@@ -266,12 +266,12 @@ where
 		.get(0)
 		.ok_or_else(|| decode_err!("OGG: Expected identification packet"))?;
 	verify_signature(identification_packet, header_sig)?;
-	log::debug!("Verified identification packet signature");
+	log::trace!("Verified identification packet signature");
 
 	// Read the remaining header packets
-	log::debug!("Reading {} packets...", packets_to_read - 1);
+	log::trace!("Reading {} packets...", packets_to_read - 1);
 	let packets = Packets::read_count(data, packets_to_read - 1)?;
-	log::debug!("Read {} packets", packets_to_read - 1);
+	log::trace!("Read {} packets", packets_to_read - 1);
 
 	if !parse_options.read_tags {
 		return Ok((None, first_page_header, packets));
@@ -281,9 +281,9 @@ where
 		.get(0)
 		.ok_or_else(|| decode_err!("OGG: Expected comment packet"))?;
 	verify_signature(metadata_packet, comment_sig)?;
-	log::debug!("Verified comments signature");
+	log::trace!("Verified comments signature");
 
-	log::debug!(
+	log::trace!(
 		"Extracted metadata packet of length {}",
 		metadata_packet.len()
 	);
@@ -291,11 +291,11 @@ where
 	// Remove the signature from the packet
 	metadata_packet = &metadata_packet[comment_sig.len()..];
 
-	log::debug!("Reading comments...");
+	log::trace!("Reading comments...");
 	let reader = &mut metadata_packet;
-	log::debug!("metadata_packet size = {}", reader.len());
+	log::trace!("metadata_packet size = {}", reader.len());
 	let tag = read_comments(reader, reader.len() as u64, parse_options)?;
-	log::debug!("Read comments");
+	log::trace!("Read comments");
 
 	Ok((Some(tag), first_page_header, packets))
 }

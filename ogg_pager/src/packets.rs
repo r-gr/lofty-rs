@@ -101,7 +101,7 @@ impl Packets {
 						current_packet_content = vec![0; byte_count_to_read as usize];
 						data.read_exact(&mut current_packet_content)?;
 
-						log::debug!("Read packet segments");
+						log::trace!("Read packet segments");
 
 						packet_sizes.push(packet_size);
 						packet_size = 0;
@@ -121,9 +121,9 @@ impl Packets {
 						Self::get_byte_count_to_read(packet_size, &mut packet_bytes_already_read);
 
 					current_packet_content = vec![0; byte_count_to_read as usize];
-					log::debug!("byte_count_to_read={}", byte_count_to_read);
+					log::trace!("byte_count_to_read={}", byte_count_to_read);
 					data.read_exact(&mut current_packet_content)?;
-					log::debug!(
+					log::trace!(
 						"Read packet data (length = {})",
 						current_packet_content.len()
 					);
